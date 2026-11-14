@@ -29,7 +29,8 @@ app = FastAPI(title="Field data API")
 # Let the Vite dev server (React app) call this API from the browser.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5176",
+    "http://127.0.0.1:5176"],
     allow_methods=["GET"],
     allow_headers=["*"],
 )
