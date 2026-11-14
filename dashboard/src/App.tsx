@@ -1,5 +1,10 @@
 import { useId, useState } from "react";
 import FarmMap, { type FarmLocation } from "./FarmMap";
+import FieldDataPanel from "./FieldDataPanel";
+import {
+  useFarmWeather,
+  summarizeWeather,
+} from "./useFarmWeather";
 
 type Range = "Today" | "1 month" | "6 months";
 
@@ -302,20 +307,71 @@ const cropStages = [
   { name: "Maturation", description: "Fruit and grain fill, ripen, and prepare for harvest." },
 ];
 
+
 export default function App() {
-  const [source, setSource] = useState<"map" | "data" | "lora">("map");
+  const [source, setSource] = useState("map");
   const [farmLocation, setFarmLocation] =
-  useState<FarmLocation | null>(null);
+    useState<FarmLocation | null>(null);
 
-  const dataReady = source === "data" && farmLocation !== null;
+  // NASA POWER API integration
+  const {
+    days: weatherDays,
+    loading: weatherLoading,
+    error: weatherError,
+  } = useFarmWeather(farmLocation);
 
-  const today = new Date();
-  const dayName = today.toLocaleDateString("en-US", { weekday: "long" });
-  const formattedDate = today.toLocaleDateString("en-US", {
+  const latestWeather = summarizeWeather(weatherDays, 1);
+  // Current date displayed in dashboard header
+  const currentDate = new Date();
+
+  const dayName = currentDate.toLocaleDateString("en-US", {
+    weekday: "long",
+  });
+
+  const formattedDate = currentDate.toLocaleDateString("en-US", {
     month: "long",
     day: "numeric",
     year: "numeric",
   });
+
+  // Show Location Data only when a farm has been selected
+  const dataReady = source === "data" && farmLocation !== null;
+  const weatherValues: Record<Metric["icon"], number | null> = {
+    temperature: latestWeather?.temperature ?? null,
+    rainfall: latestWeather?.rainfall ?? null,
+    gdd: latestWeather?.gdd ?? null,
+    humidity: latestWeather?.humidity ?? null,
+  };
+
+  const activeMetrics: Metric[] = metrics.map((metric) => {
+    const value = weatherValues[metric.icon];
+
+    return {
+      ...metric,
+
+      value: weatherLoading
+        ? "..."
+        : value !== null
+          ? value.toFixed(1)
+          : "—",
+
+      change: weatherLoading
+        ? "Loading NASA POWER data..."
+        : weatherError
+          ? `API error: ${weatherError}`
+          : latestWeather
+            ? `NASA POWER · ${latestWeather.latestDate}`
+            : "No observation available",
+    };
+  });
+
+
+  // Summaries for different dashboard periods
+	const dailyWeather = summarizeWeather(weatherDays, 1);
+	const weeklyWeather = summarizeWeather(weatherDays, 7);
+	const monthlyWeather = summarizeWeather(weatherDays, 30);
+	const sixMonthWeather = summarizeWeather(weatherDays, 180);
+	const yearlyWeather = summarizeWeather(weatherDays, 365);
 
   return (
     <main>
@@ -396,6 +452,9 @@ export default function App() {
       value={farmLocation}
       onSelect={setFarmLocation}
     />
+    {farmLocation && (
+    <FieldDataPanel location={farmLocation} />
+     )}
   </>
         ) : source === "lora" ? (
           <div className="lora-placeholder">
@@ -454,7 +513,7 @@ export default function App() {
                 <p>Selected field location</p>
               </div>
               <div className="metric-grid">
-                {metrics.map((metric) => (
+                {activeMetrics.map((metric) => (
                   <MetricCard key={metric.title} metric={metric} />
                 ))}
               </div>

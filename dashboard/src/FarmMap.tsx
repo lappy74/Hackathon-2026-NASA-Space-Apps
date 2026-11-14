@@ -12,6 +12,7 @@ import "leaflet/dist/leaflet.css";
 export type FarmLocation = {
   latitude: number;
   longitude: number;
+  radiusMiles: number;
 };
 
 type FarmMapProps = {
@@ -24,10 +25,14 @@ export default function FarmMap({
   onSelect
 }: FarmMapProps) {
 
+  
   // Map references
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markerRef = useRef<L.CircleMarker | null>(null);
+  const radiusCircleRef = useRef<L.Circle | null>(null);
+ 
+  const currentValueRef = useRef(value);
   const onSelectRef = useRef(onSelect);
   const initialValueRef = useRef(value);
 
@@ -67,11 +72,12 @@ export default function FarmMap({
 
     // Farmer selects a field
     map.on("click", (event: L.LeafletMouseEvent) => {
-      onSelectRef.current({
-        latitude: event.latlng.lat,
-        longitude: event.latlng.lng,
-      });
-    });
+  onSelectRef.current({
+    latitude: event.latlng.lat,
+    longitude: event.latlng.lng,
+    radiusMiles: currentValueRef.current?.radiusMiles ?? 1,
+  	});
+     });
 
     return () => {
       map.remove();
@@ -82,35 +88,72 @@ export default function FarmMap({
 
 
   // UPDATE SELECTED FIELD MARKER
-  useEffect(() => {
-    const map = mapRef.current;
+  
+useEffect(() => {
+  const map = mapRef.current;
+  if (!map) return;
 
-    if (!map) return;
+  // Remove marker and circle if no location
+  if (!value) {
+    markerRef.current?.remove();
+    markerRef.current = null;
 
-    if (!value) {
-      markerRef.current?.remove();
-      markerRef.current = null;
-      return;
-    }
+    radiusCircleRef.current?.remove();
+    radiusCircleRef.current = null;
 
-    const point = L.latLng(
-      value.latitude,
-      value.longitude
-    );
+    return;
+  }
 
-    if (markerRef.current) {
-      markerRef.current.setLatLng(point);
-    } else {
-      markerRef.current = L.circleMarker(point, {
-        radius: 9,
-        color: "#155c32",
-        fillColor: "#22c55e",
-        fillOpacity: 1,
-        weight: 3,
-      }).addTo(map);
-    }
-  }, [value]);
+  const point = L.latLng(
+    value.latitude,
+    value.longitude
+  );
 
+  // Create or move center marker
+  if (markerRef.current) {
+    markerRef.current.setLatLng(point);
+  } else {
+    markerRef.current = L.circleMarker(point, {
+      radius: 9,
+      color: "#155c32",
+      fillColor: "#22c55e",
+      fillOpacity: 1,
+      weight: 3,
+      interactive: false
+    }).addTo(map);
+  }
+
+  // Leaflet uses meters for geographic circles
+  const radiusMeters = value.radiusMiles * 1609.344;
+
+  if (value.radiusMiles === 0) {
+    // Zero miles means center point only
+    radiusCircleRef.current?.remove();
+    radiusCircleRef.current = null;
+
+  } else if (radiusCircleRef.current) {
+    // Update existing circle
+    radiusCircleRef.current.setLatLng(point);
+    radiusCircleRef.current.setRadius(radiusMeters);
+
+  } else {
+    // Create circle
+    radiusCircleRef.current = L.circle(point, {
+      radius: radiusMeters,
+      color: "#155c32",
+      fillColor: "#22c55e",
+      fillOpacity: 0.15,
+      weight: 2,
+      interactive: false
+    }).addTo(map);
+  }
+
+  // Keep center marker visible
+  markerRef.current?.bringToFront();
+
+}, [value]);
+
+    
   // SEARCH FOR CITY USING NOMINATIM
   async function searchCity(
     event: FormEvent<HTMLFormElement>
@@ -231,6 +274,51 @@ export default function FarmMap({
         ref={containerRef}
         className="farm-map"
       />
+
+	{/* FARM RADIUS CONTROL */}
+	{value && (
+  	<div style={{ padding: "12px" }}>
+
+   	 <label htmlFor="farm-radius">
+      	Coverage radius:
+      	<strong> {value.radiusMiles.toFixed(1)} miles</strong>
+	    </label>
+
+	    <input
+     	 id="farm-radius"
+      	type="range"
+      	min="0"
+      	max="10"
+      	step="0.1"
+      	value={value.radiusMiles}
+      	onChange={(event) => {
+        	onSelect({
+          	...value,
+          	radiusMiles: Number(event.target.value),
+        	});
+      	}}
+      	style={{
+        	width: "100%",
+        	accentColor: "#155c32",
+        	marginTop: "12px"
+      	}}
+    />
+
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        fontSize: "12px",
+        color: "#666"
+      }}
+    >
+      <span>0 miles</span>
+      <span>10 miles maximum</span>
+    </div>
+
+  </div>
+)}
+
 
       {/* SELECTED COORDINATES */}
       <div style={{ padding: "12px" }}>
