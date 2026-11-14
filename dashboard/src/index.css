@@ -1260,3 +1260,34 @@ main {
     height: 220px;
   }
 }
+/* ---- Add this to the END of your existing CSS file ---- */
+
+/* NDVI card spans both columns of the metric grid */
+.metric-card.wide {
+  grid-column: 1 / -1;
+}
+
+/* Status text inside a white card (loading / error / not enough data) */
+.card-note {
+  margin: 16px 2px 8px;
+  color: #77817a;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.card-note.error {
+  color: #a14a2f;
+}
+
+/* Status text that sits directly on the dark background (weather loading / error) */
+.metric-grid > .card-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 14px 4px;
+  color: #aebac8;
+}
+
+.metric-grid > .card-note.error {
+  color: #f0b199;
+}
+
