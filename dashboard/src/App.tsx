@@ -309,6 +309,14 @@ export default function App() {
 
   const dataReady = source === "data" && farmLocation !== null;
 
+  const today = new Date();
+  const dayName = today.toLocaleDateString("en-US", { weekday: "long" });
+  const formattedDate = today.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+
   return (
     <main>
       <header className="page-header">
@@ -345,8 +353,8 @@ export default function App() {
           </div>
         </label>
         <div className="header-meta">
-          <span>Tuesday</span>
-          <strong>May 27, 2025</strong>
+          <span>{dayName}</span>
+          <strong>{formattedDate}</strong>
         </div>
       </header>
 
