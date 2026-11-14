@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+requests
+pandas
+numpy
+rioxarray
+planetary-computer
+pystac-client
