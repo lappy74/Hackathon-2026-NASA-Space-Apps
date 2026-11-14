@@ -1,4 +1,5 @@
 import { useId, useState } from "react";
+import FarmMap, { type FarmLocation } from "./FarmMap";
 
 type Range = "Today" | "1 month" | "6 months";
 
@@ -303,17 +304,10 @@ const cropStages = [
 
 export default function App() {
   const [source, setSource] = useState<"map" | "data" | "lora">("map");
-  const [pin, setPin] = useState<{ x: number; y: number } | null>(null);
+  const [farmLocation, setFarmLocation] =
+  useState<FarmLocation | null>(null);
 
-  const placePin = (event: React.MouseEvent<HTMLButtonElement>) => {
-    const bounds = event.currentTarget.getBoundingClientRect();
-    setPin({
-      x: ((event.clientX - bounds.left) / bounds.width) * 100,
-      y: ((event.clientY - bounds.top) / bounds.height) * 100,
-    });
-  };
-
-  const dataReady = source === "data" && pin !== null;
+  const dataReady = source === "data" && farmLocation !== null;
 
   return (
     <main>
@@ -340,7 +334,7 @@ export default function App() {
               onChange={(event) => setSource(event.target.value as "map" | "data" | "lora")}
             >
               <option value="map">Map location</option>
-              <option value="data" disabled={!pin}>
+              <option value="data" disabled={!farmLocation}>
                 Location data
               </option>
               <option value="lora">LoRa Point to Point</option>
@@ -358,55 +352,43 @@ export default function App() {
 
       <section className="source-panel" aria-label="Choose a field data source">
         {source === "map" ? (
-          <>
-            <div className="source-panel-copy">
-              <div>
-                <p className="eyebrow">Field location</p>
-                <h2>{pin ? "Location selected" : "Select a location to begin"}</h2>
-                <p>
-                  {pin
-                    ? "Your field pin is set. Choose Location data from the menu above to view the dashboard."
-                    : "This space is reserved for Google Maps. For now, click anywhere on the map preview to place a field pin."}
-                </p>
-              </div>
-              <span className={pin ? "source-status ready" : "source-status"}>
-                <i />
-                {pin ? "Location ready" : "Awaiting location"}
-              </span>
-            </div>
-            <button
-              className="map-placeholder"
-              type="button"
-              onClick={placePin}
-              aria-label="Place a field pin on the map preview"
-            >
-              <span className="map-road road-one" />
-              <span className="map-road road-two" />
-              <span className="map-road road-three" />
-              <span className="map-river" />
-              <span className="map-field field-one" />
-              <span className="map-field field-two" />
-              <span className="map-field field-three" />
-              <span className="map-label label-one">North paddock</span>
-              <span className="map-label label-two">County Road 8</span>
-              {pin && (
-                <span className="map-pin" style={{ left: `${pin.x}%`, top: `${pin.y}%` }}>
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M12 22s7-6.2 7-13A7 7 0 1 0 5 9c0 6.8 7 13 7 13Z" />
-                    <circle cx="12" cy="9" r="2.5" />
-                  </svg>
-                </span>
-              )}
-              <span className="map-instruction">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M12 21s6-5.1 6-11a6 6 0 1 0-12 0c0 5.9 6 11 6 11Z" />
-                  <circle cx="12" cy="10" r="2" />
-                </svg>
-                {pin ? "Click to move pin" : "Click to place pin"}
-              </span>
-              <span className="map-api-note">Google Maps API area</span>
-            </button>
-          </>
+  <>
+    <div className="source-panel-copy">
+      <div>
+        <p className="eyebrow">Field location</p>
+
+        <h2>
+          {farmLocation
+            ? "Location selected"
+            : "Select a location to begin"}
+        </h2>
+
+        <p>
+          {farmLocation
+            ? "Your farm location is selected. Choose Location data from the menu above to view the dashboard."
+            : "Click anywhere on the map to select your farmland."}
+        </p>
+      </div>
+
+      <span
+        className={
+          farmLocation
+            ? "source-status ready"
+            : "source-status"
+        }
+      >
+        <i />
+        {farmLocation
+          ? "Location ready"
+          : "Awaiting location"}
+      </span>
+    </div>
+
+    <FarmMap
+      value={farmLocation}
+      onSelect={setFarmLocation}
+    />
+  </>
         ) : source === "lora" ? (
           <div className="lora-placeholder">
             <div className="lora-visual" aria-hidden="true">
@@ -512,7 +494,7 @@ export default function App() {
           <span />
           <p>
             {source === "map"
-              ? pin
+              ? farmLocation
                 ? "Location saved. Choose “Location data” above to view the field dashboard."
                 : "Field data will appear after you place a location pin."
               : "Field data will appear after a LoRa device is connected."}

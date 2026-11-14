@@ -1245,3 +1245,18 @@ main {
     height: 94px;
   }
 }
+
+.farm-map {
+  width: calc(100% - 16px);
+  height: 250px;
+  margin: 0 8px 8px;
+  border-radius: 11px;
+  overflow: hidden;
+  z-index: 0;
+}
+
+@media (max-width: 600px) {
+  .farm-map {
+    height: 220px;
+  }
+}
