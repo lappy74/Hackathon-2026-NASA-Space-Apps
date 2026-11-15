@@ -15,7 +15,10 @@ type WeatherResponse = {
   daily: WeatherDay[];
 };
 
-export function useFarmWeather(location: FarmLocation | null) {
+export function useFarmWeather(
+  location: FarmLocation | null,
+  baseTemp: number
+) {
   const [days, setDays] = useState<WeatherDay[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -34,9 +37,10 @@ export function useFarmWeather(location: FarmLocation | null) {
     setDays([]);
     setError("");
 
-    // Get enough observations for up to one year.
+    // Request through today. NASA POWER may lag by a few days; unavailable
+    // rows are marked -999 by the API and removed by APIcall.py, leaving the
+    // latest completed observation available from NASA.
     const end = new Date();
-    end.setUTCDate(end.getUTCDate() - 1);
 
     const start = new Date(end);
     start.setUTCDate(start.getUTCDate() - 400);
@@ -46,6 +50,7 @@ export function useFarmWeather(location: FarmLocation | null) {
       lon: String(location.longitude),
       start: start.toISOString().slice(0, 10),
       end: end.toISOString().slice(0, 10),
+      base_temp: String(baseTemp),
     });
 
     fetch(`/api/weather?${params}`, {
@@ -74,7 +79,7 @@ export function useFarmWeather(location: FarmLocation | null) {
       });
 
     return () => controller.abort();
-  }, [location?.latitude, location?.longitude]);
+  }, [location?.latitude, location?.longitude, baseTemp]);
 
   return { days, loading, error };
 }

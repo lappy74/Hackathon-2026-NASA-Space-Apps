@@ -13,6 +13,7 @@ export type FarmLocation = {
   latitude: number;
   longitude: number;
   radiusMiles: number;
+  address?: string;
 };
 
 type FarmMapProps = {
@@ -35,6 +36,7 @@ export default function FarmMap({
   const currentValueRef = useRef(value);
   const onSelectRef = useRef(onSelect);
   const initialValueRef = useRef(value);
+  const reverseRequestRef = useRef(0);
 
   // City search states
   const [city, setCity] = useState("");
@@ -45,6 +47,40 @@ export default function FarmMap({
   useEffect(() => {
     onSelectRef.current = onSelect;
   }, [onSelect]);
+
+  useEffect(() => {
+    currentValueRef.current = value;
+  }, [value]);
+
+  async function findNearestAddress(location: FarmLocation) {
+    const requestId = ++reverseRequestRef.current;
+    const params = new URLSearchParams({
+      lat: String(location.latitude),
+      lon: String(location.longitude),
+      format: "jsonv2",
+      zoom: "18",
+      addressdetails: "1",
+    });
+
+    try {
+      const response = await fetch(
+        "https://nominatim.openstreetmap.org/reverse?" + params.toString(),
+        { headers: { "Accept-Language": "en" } }
+      );
+
+      if (!response.ok) return;
+
+      const result = await response.json() as { display_name?: string };
+      if (
+        requestId === reverseRequestRef.current &&
+        result.display_name
+      ) {
+        onSelectRef.current({ ...location, address: result.display_name });
+      }
+    } catch {
+      // Keep the selected coordinates if reverse geocoding is unavailable.
+    }
+  }
 
   // INITIALIZE OPENSTREETMAP
   useEffect(() => {
@@ -72,11 +108,14 @@ export default function FarmMap({
 
     // Farmer selects a field
     map.on("click", (event: L.LeafletMouseEvent) => {
-  onSelectRef.current({
-    latitude: event.latlng.lat,
-    longitude: event.latlng.lng,
-    radiusMiles: currentValueRef.current?.radiusMiles ?? 1,
-  	});
+      const selectedLocation: FarmLocation = {
+        latitude: event.latlng.lat,
+        longitude: event.latlng.lng,
+        radiusMiles: currentValueRef.current?.radiusMiles ?? 1,
+      };
+
+      onSelectRef.current(selectedLocation);
+      void findNearestAddress(selectedLocation);
      });
 
     return () => {

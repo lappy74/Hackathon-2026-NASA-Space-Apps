@@ -1,7 +1,10 @@
 import { useId, useState } from "react";
 import type { CSSProperties } from "react";
 import FarmMap, { type FarmLocation } from "./FarmMap";
-import FieldDataPanel from "./FieldDataPanel";
+import FieldDataPanel, {
+  PeriodSelector,
+  type Period,
+} from "./FieldDataPanel";
 import {
   useFarmWeather,
   summarizeWeather,
@@ -18,6 +21,8 @@ type Metric = {
   softColor: string;
   icon: "temperature" | "rainfall" | "gdd" | "humidity" | "soil" | "health";
   data: Record<Range, number[]>;
+  chartValues?: number[];
+  chartLabels?: string[];
 };
 
 const metrics: Metric[] = [
@@ -173,34 +178,101 @@ function Icon({ type }: { type: Metric["icon"] }) {
   );
 }
 
-function LineChart({ values, color }: { values: number[]; color: string }) {
+function LineChart({
+  values,
+  color,
+  yLabel = "",
+  xLabels = ["Start", "Latest"],
+}: {
+  values: number[];
+  color: string;
+  yLabel?: string;
+  xLabels?: string[];
+}) {
   const id = useId().replace(/:/g, "");
   const width = 480;
-  const height = 112;
-  const min = Math.min(...values);
-  const max = Math.max(...values);
+  const height = 144;
+  const plotLeft = 42;
+  const plotRight = 8;
+  const plotTop = 10;
+  const plotBottom = 32;
+  const plotWidth = width - plotLeft - plotRight;
+  const plotHeight = height - plotTop - plotBottom;
+  if (values.length === 0) {
+    return <div className="chart" aria-hidden="true" />;
+  }
+  const min = 0;
+  const max = Math.max(...values, 0);
   const spread = max - min || 1;
   const points = values.map((value, index) => {
-    const x = (index / (values.length - 1)) * width;
-    const y = height - 12 - ((value - min) / spread) * 82;
+    const x = values.length === 1
+      ? plotLeft + plotWidth / 2
+      : plotLeft + (index / (values.length - 1)) * plotWidth;
+    const y = plotTop + plotHeight - ((value - min) / spread) * plotHeight;
     return [x, y];
   });
   const line = points.map(([x, y], i) => `${i ? "L" : "M"} ${x} ${y}`).join(" ");
-  const area = `${line} L ${width} ${height} L 0 ${height} Z`;
+  const area = values.length > 1
+    ? `${line} L ${plotLeft + plotWidth} ${plotTop + plotHeight} L ${plotLeft} ${plotTop + plotHeight} Z`
+    : "";
+  const yTicks = [0, 0.5, 1].map((position) => ({
+    y: plotTop + plotHeight - position * plotHeight,
+    value: min + position * spread,
+  }));
+  const xLabelCount = Math.min(4, xLabels.length);
+  const xLabelIndexes = xLabelCount === 1
+    ? [0]
+    : Array.from({ length: xLabelCount }, (_, index) =>
+        Math.round((index * (xLabels.length - 1)) / (xLabelCount - 1))
+      );
 
   return (
     <div className="chart" aria-hidden="true">
-      <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
+      <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet">
         <defs>
           <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={color} stopOpacity=".24" />
             <stop offset="100%" stopColor={color} stopOpacity="0" />
           </linearGradient>
         </defs>
-        {[26, 58, 90].map((y) => (
-          <line key={y} x1="0" y1={y} x2={width} y2={y} className="grid-line" />
+        {yTicks.map(({ y, value }) => (
+          <g key={y}>
+            <line x1={plotLeft} y1={y} x2={plotLeft + plotWidth} y2={y} className="grid-line" />
+            <text x={plotLeft - 6} y={y + 3} textAnchor="end" className="axis-label">
+              {value.toFixed(1)}
+            </text>
+          </g>
         ))}
-        <path d={area} fill={`url(#${id})`} />
+        <line x1={plotLeft} y1={plotTop} x2={plotLeft} y2={plotTop + plotHeight} className="axis-line" />
+        <line x1={plotLeft} y1={plotTop + plotHeight} x2={plotLeft + plotWidth} y2={plotTop + plotHeight} className="axis-line" />
+        {yLabel && (
+          <text
+            x="9"
+            y={plotTop + plotHeight / 2}
+            textAnchor="middle"
+            className="axis-title"
+            transform={`rotate(-90 9 ${plotTop + plotHeight / 2})`}
+          >
+            {yLabel}
+          </text>
+        )}
+        {xLabelIndexes.map((labelIndex, index) => {
+          const x = xLabels.length === 1
+            ? plotLeft + plotWidth / 2
+            : plotLeft + (labelIndex / (xLabels.length - 1)) * plotWidth;
+          return (
+            <text
+              key={`${xLabels[labelIndex]}-${labelIndex}`}
+              x={x}
+              y={height - 8}
+              textAnchor={index === 0 ? "start" : index === xLabelIndexes.length - 1 ? "end" : "middle"}
+              className="axis-label"
+            >
+              {xLabels[labelIndex]}
+            </text>
+          );
+        })}
+        {area && <path d={area} fill={`url(#${id})`} />}
         <path
           d={line}
           fill="none"
@@ -225,8 +297,23 @@ function LineChart({ values, color }: { values: number[]; color: string }) {
   );
 }
 
-function MetricCard({ metric }: { metric: Metric }) {
-  const [range, setRange] = useState<Range>("Today");
+function MetricCard({
+  metric,
+  period,
+  baseTemp,
+  onBaseTempChange,
+}: {
+  metric: Metric;
+  period: Period;
+  baseTemp?: string;
+  onBaseTempChange?: (value: string) => void;
+}) {
+  const fallbackValues = metric.data.Today;
+  const chartValues = metric.chartValues ?? (
+    period === "daily"
+      ? [fallbackValues[fallbackValues.length - 1]]
+      : fallbackValues
+  );
 
   return (
     <article className="metric-card">
@@ -243,19 +330,6 @@ function MetricCard({ metric }: { metric: Metric }) {
             <h2>{metric.title}</h2>
           </div>
         </div>
-        <div className="range-control" aria-label={`${metric.title} date range`}>
-          {ranges.map((item) => (
-            <button
-              key={item}
-              type="button"
-              className={range === item ? "active" : ""}
-              onClick={() => setRange(item)}
-              aria-pressed={range === item}
-            >
-              {item}
-            </button>
-          ))}
-        </div>
       </div>
       <div className="metric-content">
         <div className="reading">
@@ -265,12 +339,31 @@ function MetricCard({ metric }: { metric: Metric }) {
           </p>
           <small>{metric.change}</small>
         </div>
-        <LineChart values={metric.data[range]} color={metric.color} />
+        <LineChart
+          values={chartValues}
+          color={metric.color}
+          yLabel={metric.unit}
+          xLabels={metric.chartLabels ?? ["Start", "Latest"]}
+        />
       </div>
-      <div className="chart-labels">
-        <span>{range === "Today" ? "6 AM" : range === "1 month" ? "May 01" : "Dec"}</span>
-        <span>{range === "Today" ? "Now" : range === "1 month" ? "May 31" : "May"}</span>
-      </div>
+      {metric.icon === "gdd" && baseTemp !== undefined && onBaseTempChange && (
+        <div className="gdd-base-control">
+          <label htmlFor="gdd-base-temperature">Base temperature (Tbase)</label>
+          <div>
+            <input
+              id="gdd-base-temperature"
+              type="number"
+              min="-50"
+              max="50"
+              step="0.1"
+              value={baseTemp}
+              onChange={(event) => onBaseTempChange(event.target.value)}
+              aria-describedby="gdd-base-temperature-unit"
+            />
+            <span id="gdd-base-temperature-unit">°C</span>
+          </div>
+        </div>
+      )}
     </article>
   );
 }
@@ -356,21 +449,43 @@ const cropStages = [
   { name: "Maturation", description: "Fruit and grain fill, ripen, and prepare for harvest." },
 ];
 
+const periodDays: Record<Period, number> = {
+  daily: 1,
+  weekly: 7,
+  monthly: 30,
+  yearly: 365,
+};
+
 
 export default function App() {
   const [source, setSource] = useState<"map" | "data" | "lora" | "crop">("map");
   const [environmentView, setEnvironmentView] = useState<"weather" | "soil">("weather");
   const [farmLocation, setFarmLocation] =
     useState<FarmLocation | null>(null);
+  const [period, setPeriod] = useState<Period>("daily");
+  const [baseTempInput, setBaseTempInput] = useState("10");
+  const parsedBaseTemp = Number(baseTempInput);
+  const baseTemp = Number.isFinite(parsedBaseTemp) ? parsedBaseTemp : 10;
 
   // NASA POWER API integration
   const {
     days: weatherDays,
     loading: weatherLoading,
     error: weatherError,
-  } = useFarmWeather(farmLocation);
+  } = useFarmWeather(farmLocation, baseTemp);
 
-  const latestWeather = summarizeWeather(weatherDays, 1);
+  const latestWeather = summarizeWeather(weatherDays, periodDays[period]);
+  const latestDay = weatherDays[weatherDays.length - 1];
+  const chartStartDate = latestDay
+    ? new Date(`${latestDay.date}T00:00:00Z`)
+    : null;
+  if (chartStartDate) {
+    chartStartDate.setUTCDate(chartStartDate.getUTCDate() - periodDays[period] + 1);
+  }
+  const chartStart = chartStartDate?.toISOString().slice(0, 10);
+  const chartDays = chartStart && latestDay
+    ? weatherDays.filter((day) => day.date >= chartStart && day.date <= latestDay.date)
+    : [];
   // Current date displayed in dashboard header
   const currentDate = new Date();
 
@@ -400,6 +515,16 @@ export default function App() {
 
     return {
       ...metric,
+      chartValues: chartDays.map((day) => {
+        if (metric.icon === "temperature") return day.temp_avg;
+        if (metric.icon === "rainfall") return day.rain;
+        if (metric.icon === "gdd") return day.cumulative_gdd;
+        if (metric.icon === "humidity") return day.humidity;
+        return 0;
+      }),
+      chartLabels: chartDays.length > 0
+        ? chartDays.map((day) => day.date)
+        : undefined,
 
       value: weatherLoading
         ? "..."
@@ -421,11 +546,7 @@ export default function App() {
   return (
     <main>
       <header className="page-header">
-        <div className="brand-mark" aria-hidden="true">
-          <span />
-          <span />
-          <span />
-        </div>
+        <img className="brand-mark" src="/LOGO.png" alt="ISL ASTRO-NOTS logo" />
         <div className="title-block">
           <p className="overline">Agricultural intelligence</p>
           <h1>ISL ASTRO-NOTS</h1>
@@ -433,10 +554,10 @@ export default function App() {
         </div>
         <nav className="source-nav" aria-label="Data sources">
           {([
-            ["map", "Map location"],
-            ["data", "Location data"],
-            ["lora", "LoRa Point to Point"],
-            ["crop", "Crop cycles"],
+            ["map", "Location Select"],
+            ["data", "Location Data"],
+            ["lora", "LoRa"],
+            ["crop", "Crop Cycles"],
           ] as const).map(([value, label]) => (
             <button
               key={value}
@@ -495,31 +616,77 @@ export default function App() {
       value={farmLocation}
       onSelect={setFarmLocation}
     />
-    {farmLocation && <FieldDataPanel location={farmLocation} />}
+    {farmLocation && (
+      <FieldDataPanel
+        location={farmLocation}
+        period={period}
+        onPeriodChange={setPeriod}
+        days={weatherDays}
+        loading={weatherLoading}
+        error={weatherError}
+      />
+    )}
   </>
         ) : source === "lora" ? (
-          <div className="lora-placeholder">
-            <div className="lora-visual" aria-hidden="true">
-              <span className="lora-node node-left">
-                <i />
-              </span>
-              <span className="signal-line line-one" />
-              <span className="signal-line line-two" />
-              <span className="signal-line line-three" />
-              <span className="lora-node node-right">
-                <i />
-              </span>
+          <div className="lora-dashboard">
+            <div className="lora-dashboard-heading">
+              <div>
+                <p className="eyebrow">Direct field connection</p>
+                <h2>LoRa Point to Point</h2>
+                <p>Receiver requests data from the transmitter, then confirms the final packet handshake.</p>
+              </div>
+              <span className="source-status ready"><i /> Template ready</span>
             </div>
-            <div>
-              <p className="eyebrow">Direct field connection</p>
-              <h2>LoRa Point to Point</h2>
-              <p>
-                This space is reserved for pairing a LoRa field node. Device discovery and live
-                sensor transfer can be connected here later.
-              </p>
-              <span className="source-status">
-                <i /> Integration pending
-              </span>
+
+            <div className="lora-device-flow">
+              <div className="lora-device-card">
+                <span className="lora-device-role">Transmitter</span>
+                <strong>TX-01 · Field node</strong>
+                <small>Accepts request and sends sensor strings</small>
+              </div>
+              <div className="lora-flow-arrow" aria-hidden="true">↔</div>
+              <div className="lora-device-card">
+                <span className="lora-device-role">Receiver</span>
+                <strong>RX-01 · Base station</strong>
+                <small>Requests data and confirms receipt</small>
+              </div>
+            </div>
+
+            <div className="lora-content-grid">
+              <section className="lora-data-card" aria-labelledby="lora-data-heading">
+                <div className="lora-card-heading">
+                  <div>
+                    <p className="eyebrow">Received payload</p>
+                    <h3 id="lora-data-heading">Field sensor data</h3>
+                  </div>
+                  <span className="lora-packet-status">Packet 001</span>
+                </div>
+                <div className="lora-sensor-grid">
+                  <div><span>Temperature</span><strong>17.2 °C</strong></div>
+                  <div><span>Rainfall</span><strong>4.8 mm</strong></div>
+                  <div><span>GDD</span><strong>7.4</strong></div>
+                  <div><span>Soil moisture</span><strong>56%</strong></div>
+                  <div><span>Humidity</span><strong>67%</strong></div>
+                </div>
+                <p className="lora-placeholder-note">Placeholder values · API payload integration pending</p>
+              </section>
+
+              <section className="lora-handshake-card" aria-labelledby="lora-handshake-heading">
+                <div className="lora-card-heading">
+                  <div>
+                    <p className="eyebrow">Connection sequence</p>
+                    <h3 id="lora-handshake-heading">Handshake status</h3>
+                  </div>
+                  <span className="handshake-complete"><i /> Complete</span>
+                </div>
+                <ol className="lora-handshake-list">
+                  <li className="complete"><i /> Receiver request sent</li>
+                  <li className="complete"><i /> Transmitter accepted request</li>
+                  <li className="complete"><i /> Sensor data packet sent</li>
+                  <li className="complete"><i /> Receiver confirmed final handshake</li>
+                </ol>
+                <p className="lora-received-note">Final handshake complete · data received by RX-01</p>
+              </section>
             </div>
           </div>
         ) : source === "crop" ? (
@@ -529,7 +696,7 @@ export default function App() {
             <p>
               This space is reserved for crop-cycle planning and seasonal growth tracking.
             </p>
-            <span className="source-status"><i /> Template ready</span>
+            <span className="source-status"><i /> Work in progress</span>
           </div>
         ) : (
           <div className="location-summary">
@@ -541,7 +708,7 @@ export default function App() {
             </div>
             <div>
               <p className="eyebrow">Selected location</p>
-              <h2>Field 01 · North paddock</h2>
+              <h2>{farmLocation.address ?? "Selected map pin"}</h2>
               <p>Live conditions and crop-cycle data for your selected field pin.</p>
             </div>
             <button type="button" onClick={() => setSource("map")}>
@@ -560,7 +727,14 @@ export default function App() {
                   <p className="eyebrow">Environment</p>
                   <h2>Growing conditions</h2>
                 </div>
-                <p>Selected field location</p>
+                <div className="section-period-selector">
+                  <span>Data period</span>
+                  <PeriodSelector
+                    period={period}
+                    onPeriodChange={setPeriod}
+                    compact
+                  />
+                </div>
               </div>
               <div className="environment-tabs" aria-label="Environment data type">
                 <button
@@ -585,7 +759,13 @@ export default function App() {
                   ? activeMetrics.filter((metric) => metric.title !== "Humidity")
                   : soilWaterMetrics
                 ).map((metric) => (
-                  <MetricCard key={metric.title} metric={metric} />
+                  <MetricCard
+                    key={metric.title}
+                    metric={metric}
+                    period={period}
+                    baseTemp={metric.icon === "gdd" ? baseTempInput : undefined}
+                    onBaseTempChange={metric.icon === "gdd" ? setBaseTempInput : undefined}
+                  />
                 ))}
               </div>
             </div>

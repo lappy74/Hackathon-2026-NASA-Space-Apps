@@ -108,6 +108,11 @@ def weather(
     return {
         "selected_point": {"latitude": lat, "longitude": lon},
         "date_range": {"start": start, "end": end},
+        "available_date_range": {
+            "start": daily[0]["date"],
+            "end": daily[-1]["date"],
+        },
+        "latest_available_date": daily[-1]["date"],
         "base_temp": base_temp,
         "summary_metrics": {"total_gdd": daily[-1]["cumulative_gdd"]},
         "daily": daily,
