@@ -1,16 +1,20 @@
 """
-Field data API for the ISL ASTRO-NOTS dashboard.
+Field data API for the Farm / ISL ASTRO-NOTS dashboard.
 
-Install:  pip install fastapi uvicorn requests pandas numpy rioxarray planetary-computer pystac-client
-Run:      uvicorn api:app --reload --port 8000
+Install:  pip install fastapi uvicorn requests pandas numpy rioxarray planetary-computer pystac-client supabase python-dotenv
+Run:      uvicorn APIcall:app --reload --port 8000
 
 Endpoints (the React app calls both with the same query string):
   GET /api/weather?lat=..&lon=..&start=YYYY-MM-DD&end=YYYY-MM-DD   (fast: NASA POWER + GDD)
   GET /api/ndvi?lat=..&lon=..&start=YYYY-MM-DD&end=YYYY-MM-DD      (slow: Landsat NDVI)
 """
 
-from datetime import date
+from datetime import date, datetime, timezone
 from functools import lru_cache
+import json
+from pathlib import Path
+import logging
+import os
 
 import numpy as np
 import pandas as pd
@@ -20,20 +24,70 @@ import requests
 import rioxarray
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
+from supabase import create_client
 
 POWER_URL = "https://power.larc.nasa.gov/api/temporal/daily/point"
 STAC_URL = "https://planetarycomputer.microsoft.com/api/stac/v1"
 
+# Our private Supabase credentials stay in dashboard/.env, not inside React.
+load_dotenv(Path(__file__).resolve().parent.parent / ".env", override=True)
+logger = logging.getLogger("uvicorn.error")
+
+from lora_manual_api import router as manual_lora_router
+
 app = FastAPI(title="Field data API")
+app.include_router(manual_lora_router)
 
 # Let the Vite dev server (React app) call this API from the browser.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5176",
-    "http://127.0.0.1:5176"],
-    allow_methods=["GET"],
+    "http://127.0.0.1:5176",
+    "http://localhost:5174", "http://127.0.0.1:5174",
+    "http://localhost:5175", "http://127.0.0.1:5175"],
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
+
+
+
+# The LoRa bridge writes a tiny local status file. We just read that here.
+# No Supabase secret keys or direct browser-to-USB connections needed.
+LORA_STATUS_FILE = Path(__file__).resolve().parent.parent / ".farm_lora_status.json"
+
+
+@app.get("/api/lora/status")
+def get_lora_status():
+    # If we haven't started the bridge yet, the dashboard should say offline.
+    empty = {
+        "bridge_running": False,
+        "main_connected": False,
+        "main_port": None,
+        "weather_cached": False,
+        "cached_packet": None,
+        "cache_updated_at": None,
+        "last_request_at": None,
+        "last_reply_tx_at": None,
+        "last_reply_status": "none",
+        "last_error": None,
+        "updated_at": None,
+        "events": [],
+    }
+    try:
+        data = json.loads(LORA_STATUS_FILE.read_text(encoding="utf-8"))
+        heartbeat = datetime.fromisoformat(data["updated_at"])
+        age = (datetime.now(timezone.utc) - heartbeat).total_seconds()
+        online = 0 <= age < 40
+        result = {**empty, **data}
+        result["bridge_running"] = online
+        # Last-known data isn't proof that the board is connected right now.
+        if not online:
+            result["main_connected"] = False
+            result["weather_cached"] = False
+        return result
+    except (OSError, ValueError, KeyError, TypeError):
+        return empty
 
 
 def parse_dates(start: str, end: str) -> tuple[date, date]:
@@ -45,6 +99,47 @@ def parse_dates(start: str, end: str) -> tuple[date, date]:
     if start_d > end_d:
         raise HTTPException(status_code=422, detail="start must be on or before end.")
     return start_d, end_d
+
+
+@lru_cache(maxsize=1)
+def get_farm_database():
+    # Reuse one Supabase connection instead of creating one for every weather request.
+    url = os.getenv("SUPABASE_URL", "").strip().rstrip("/")
+    key = os.getenv("SUPABASE_SECRET_KEY", "").strip()
+
+    if not url or not key:
+        return None
+
+    return create_client(url, key)
+
+
+def save_latest_farm_weather(lat: float, lon: float, latest_day: dict) -> None:
+    # One latest row is enough for our current main Heltec and farmer station.
+    # The most recent day returned by NASA POWER is the one we'll send over LoRa.
+    row = {
+        "id": 1,
+        "observation_date": latest_day["date"],
+        "temp_avg_c": latest_day["temp_avg"],
+        "daily_gdd": latest_day["daily_gdd"],
+        "rain_mm": latest_day["rain"],
+        "latitude": lat,
+        "longitude": lon,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+    try:
+        db = get_farm_database()
+        if db is None:
+            logger.warning("Farm Supabase sync skipped: missing .env credentials")
+            return
+
+        # id=1 is the same row our existing lora_bridge.py already reads.
+        db.table("farm_weather_latest").upsert(row, on_conflict="id").execute()
+        logger.info("Farm Supabase cache updated for %s", latest_day["date"])
+    except Exception as exc:
+        # Keep the dashboard usable even if Supabase or our internet is down.
+        # The bridge will keep the last successfully stored data until a new sync.
+        logger.warning("Farm Supabase sync failed: %s", exc)
 
 
 # ---------------------------------------------------------------------------
@@ -96,6 +191,8 @@ def weather(
     daily = [
         {
             "date": idx.strftime("%Y-%m-%d"),
+            "temp_max": round(float(row["T2M_MAX"]), 1),
+            "temp_min": round(float(row["T2M_MIN"]), 1),
             "temp_avg": round(float(row["temp_avg"]), 1),
             "rain": round(float(row["PRECTOTCORR"]), 1),
             "humidity": round(float(row["RH2M"]), 1),
@@ -104,6 +201,10 @@ def weather(
         }
         for idx, row in df.iterrows()
     ]
+
+    # Send the latest available NASA POWER reading to Supabase for our LoRa bridge.
+    # If Supabase goes down, the dashboard still returns the weather normally.
+    save_latest_farm_weather(lat, lon, daily[-1])
 
     return {
         "selected_point": {"latitude": lat, "longitude": lon},
@@ -510,3 +611,8 @@ def build_area_analysis(daily, ndvi_series, radius_miles):
         "notices": notices,  # the list of notices
         "notes": notes,  # the fine print
     }
+
+
+# Farm local LoRa manual-push endpoint (retains all weather/NDVI routes).
+from lora_push_routes import install_lora_push_routes
+install_lora_push_routes(app)

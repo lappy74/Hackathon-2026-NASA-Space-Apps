@@ -1,6 +1,7 @@
 import { useId, useState } from "react";
 import type { CSSProperties } from "react";
 import FarmMap, { type FarmLocation } from "./FarmMap";
+import LoRaDashboard from "./LoRaDashboard";
 import FieldDataPanel, {
   PeriodSelector,
   type Period,
@@ -628,67 +629,7 @@ export default function App() {
     )}
   </>
         ) : source === "lora" ? (
-          <div className="lora-dashboard">
-            <div className="lora-dashboard-heading">
-              <div>
-                <p className="eyebrow">Direct field connection</p>
-                <h2>LoRa Point to Point</h2>
-                <p>Receiver requests data from the transmitter, then confirms the final packet handshake.</p>
-              </div>
-              <span className="source-status ready"><i /> Template ready</span>
-            </div>
-
-            <div className="lora-device-flow">
-              <div className="lora-device-card">
-                <span className="lora-device-role">Transmitter</span>
-                <strong>TX-01 · Field node</strong>
-                <small>Accepts request and sends sensor strings</small>
-              </div>
-              <div className="lora-flow-arrow" aria-hidden="true">↔</div>
-              <div className="lora-device-card">
-                <span className="lora-device-role">Receiver</span>
-                <strong>RX-01 · Base station</strong>
-                <small>Requests data and confirms receipt</small>
-              </div>
-            </div>
-
-            <div className="lora-content-grid">
-              <section className="lora-data-card" aria-labelledby="lora-data-heading">
-                <div className="lora-card-heading">
-                  <div>
-                    <p className="eyebrow">Received payload</p>
-                    <h3 id="lora-data-heading">Field sensor data</h3>
-                  </div>
-                  <span className="lora-packet-status">Packet 001</span>
-                </div>
-                <div className="lora-sensor-grid">
-                  <div><span>Temperature</span><strong>17.2 °C</strong></div>
-                  <div><span>Rainfall</span><strong>4.8 mm</strong></div>
-                  <div><span>GDD</span><strong>7.4</strong></div>
-                  <div><span>Soil moisture</span><strong>56%</strong></div>
-                  <div><span>Humidity</span><strong>67%</strong></div>
-                </div>
-                <p className="lora-placeholder-note">Placeholder values · API payload integration pending</p>
-              </section>
-
-              <section className="lora-handshake-card" aria-labelledby="lora-handshake-heading">
-                <div className="lora-card-heading">
-                  <div>
-                    <p className="eyebrow">Connection sequence</p>
-                    <h3 id="lora-handshake-heading">Handshake status</h3>
-                  </div>
-                  <span className="handshake-complete"><i /> Complete</span>
-                </div>
-                <ol className="lora-handshake-list">
-                  <li className="complete"><i /> Receiver request sent</li>
-                  <li className="complete"><i /> Transmitter accepted request</li>
-                  <li className="complete"><i /> Sensor data packet sent</li>
-                  <li className="complete"><i /> Receiver confirmed final handshake</li>
-                </ol>
-                <p className="lora-received-note">Final handshake complete · data received by RX-01</p>
-              </section>
-            </div>
-          </div>
+          <LoRaDashboard />
         ) : source === "crop" ? (
           <div className="crop-cycle-placeholder">
             <p className="eyebrow">Crop cycles</p>

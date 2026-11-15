@@ -1,0 +1,42 @@
+/* Extra styling for the existing LoRa tab. The rest stays in index.css. */
+.lora-link-state {
+  flex-shrink: 0;
+  padding: 5px 9px;
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 99px;
+  color: #c0cbd7;
+  font-size: 10px;
+  font-weight: 700;
+}
+.lora-link-state.is-success { color: #8ee0ae; border-color: rgba(78,190,125,.35); }
+.lora-link-state.is-error { color: #f1ac9e; border-color: rgba(241,172,158,.35); }
+.lora-event-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #63cc8d; flex: 0 0 6px; }
+.lora-event-dot.muted { background: #65788b; }
+.lora-error { margin-top: 12px; color: #f0b199; font-size: 11px; }
+.lora-activity { margin-top: 16px; padding: 18px; border: 1px solid rgba(255,255,255,.14); border-radius: 12px; background: rgba(7,22,38,.34); }
+.lora-activity h3 { margin-top: 3px; color: #f5f7fa; font-size: 15px; }
+.lora-event-list { display: grid; gap: 1px; padding: 0; margin: 16px 0 0; list-style: none; }
+.lora-event-list li { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 7px 20px; padding: 9px 0; border-top: 1px solid rgba(255,255,255,.08); font-size: 11px; color: #d6e0eb; }
+.lora-event-list time { color: #91a1b4; font-size: 10px; }
+@media(max-width: 720px) { .lora-event-list li { justify-content: center; } }
+
+/* Manual dispatch controls, matching the existing navy-and-gold LoRa tab. */
+.lora-manual-card {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 14px 24px;
+  padding: 18px; margin-bottom: 16px;
+  border: 1px solid rgba(209, 163, 38, .3); border-radius: 12px;
+  background: rgba(209, 163, 38, .065);
+}
+.lora-manual-card h3 { margin-top: 3px; color: #f5f7fa; font-size: 15px; }
+.lora-manual-card p:not(.eyebrow) { max-width: 660px; margin-top: 6px; color: #aebac8; font-size: 11px; line-height: 1.5; }
+.lora-manual-card .lora-manual-state { color: #e4ca83 !important; }
+.lora-manual-card .lora-error { color: #f1ac9e !important; }
+.lora-send-button {
+  padding: 11px 17px; flex-shrink: 0; border: 1px solid #dfb83c;
+  border-radius: 9px; background: #d1a326; color: #15283c;
+  font-size: 12px; font-weight: 700;
+}
+.lora-send-button:hover:not(:disabled) { background: #e7bb43; }
+.lora-send-button:disabled { opacity: .52; cursor: not-allowed; }
+@media(max-width: 720px) { .lora-manual-card { flex-direction: column; } }
