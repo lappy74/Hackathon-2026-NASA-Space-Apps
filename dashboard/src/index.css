@@ -1882,6 +1882,225 @@ main {
   .lora-flow-arrow {
     transform: rotate(90deg);
   }
+  /* ---- Paste this at the VERY END of index.css, on a new line after the last } ---- */
+
+/* Outer wrapper: sits inside the dark .source-panel card */
+.analysis-wrap {
+  padding: 22px;
+}
+
+/* Title on the left, status badge on the right */
+.analysis-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.analysis-sub {
+  margin-top: 4px;
+  color: #aebac8;
+  font-size: 10px;
+}
+
+/* One-sentence summary under the header */
+.analysis-headline {
+  margin: 18px 0 16px;
+  padding-left: 14px;
+  border-left: 3px solid var(--gold);
+  color: #eef2f6;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* Badge in the top right */
+.analysis-badge {
+  flex: 0 0 auto;
+  padding: 6px 11px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 99px;
+  color: #cfd8e2;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.analysis-badge.good {
+  color: #bfe3cc;
+  border-color: rgba(95, 179, 131, 0.45);
+  background: rgba(95, 179, 131, 0.1);
+}
+
+.analysis-badge.watch {
+  color: #f3d26d;
+  border-color: rgba(209, 163, 38, 0.45);
+  background: rgba(209, 163, 38, 0.1);
+}
+
+.analysis-badge.alert {
+  color: #f4b49c;
+  border-color: rgba(232, 130, 95, 0.5);
+  background: rgba(232, 130, 95, 0.1);
+}
+
+/* Loading / empty / error text */
+.analysis-message-box {
+  margin-top: 18px;
+  padding: 18px;
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  border-radius: 12px;
+  color: #aebac8;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.analysis-message-box.error {
+  color: #f4b49c;
+  border-color: rgba(232, 130, 95, 0.4);
+}
+
+/* Three notice cards side by side */
+.analysis-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.analysis-notice {
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.analysis-notice-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.analysis-notice h3 {
+  color: #f7f8fa;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* Small colored pill with the label */
+.analysis-pill {
+  flex: 0 0 auto;
+  padding: 3px 9px;
+  border-radius: 99px;
+  color: #cfd8e2;
+  background: rgba(255, 255, 255, 0.1);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.analysis-pill.good {
+  color: #0d223b;
+  background: #bfe3cc;
+}
+
+.analysis-pill.watch {
+  color: #0d223b;
+  background: #f3d26d;
+}
+
+.analysis-pill.alert {
+  color: #0d223b;
+  background: #f4b49c;
+}
+
+.analysis-message {
+  color: #c4cfda;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+/* Cool-season / warm-season sub-lines */
+.analysis-lines {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0 0;
+  padding: 12px 0 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  list-style: none;
+}
+
+.analysis-lines li {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+}
+
+.analysis-lines strong {
+  display: block;
+  color: #eef2f6;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.analysis-lines span {
+  display: block;
+  margin-top: 2px;
+  color: #aebac8;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.analysis-dot {
+  flex: 0 0 8px;
+  width: 8px;
+  height: 8px;
+  margin-top: 4px;
+  border-radius: 50%;
+  background: #8090a2;
+}
+
+.analysis-dot.good {
+  background: #5fb383;
+}
+
+.analysis-dot.watch {
+  background: var(--gold);
+}
+
+.analysis-dot.alert {
+  background: #e8825f;
+}
+
+/* The "inspect field" reminder at the bottom of a flagged card */
+.analysis-reminder {
+  margin-top: 12px;
+  padding: 7px 10px;
+  border: 1px solid rgba(209, 163, 38, 0.35);
+  border-radius: 8px;
+  color: #f3d26d;
+  background: rgba(209, 163, 38, 0.08);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+/* Fine print */
+.analysis-notes {
+  margin: 16px 0 0;
+  padding: 14px 0 0 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  color: #8fa0b3;
+  font-size: 9px;
+  line-height: 1.55;
+}
+
+.analysis-notes li + li {
+  margin-top: 4px;
+}
+
+@media (max-width: 900px) {
+  .analysis-grid {
+    grid-template-columns: 1fr;
+  }
+}
 
   .lora-sensor-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
