@@ -27,6 +27,20 @@ from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from supabase import create_client
 
+
+# FARM LORA FIXED LOCATION
+# Change the latitude and longitude if needed
+# FARM_LORA_LAT = latitude of the farm location
+# FAMR_LORA_LON = Longitude of the farm location
+# Currently set to Sonoma State University Wine Spectator Building
+FARM_LORA_LAT = 38.3414
+FARM_LORA_LON = -122.67
+def is_farm_lora_location(lat, lon):
+    return (
+        abs(float(lat) - FARM_LORA_LAT) < 0.00001
+        and abs(float(lon) - FARM_LORA_LON) < 0.00001
+    )
+
 POWER_URL = "https://power.larc.nasa.gov/api/temporal/daily/point"
 STAC_URL = "https://planetarycomputer.microsoft.com/api/stac/v1"
 
@@ -121,6 +135,14 @@ def get_farm_database():
 def save_latest_farm_weather(lat: float, lon: float, latest_day: dict) -> None:
     # One latest row is enough for our current main Heltec and farmer station.
     # The most recent day returned by NASA POWER is the one we'll send over LoRa.
+        # Only the designated Farm LoRa location
+    # is allowed to update the shared LoRa record.
+    if not is_farm_lora_location(lat, lon):
+        print(
+            f"[LORA] Ignoring map location: {lat}, {lon}",
+            flush=True
+        )
+        return
     row = {
         "id": 1,
         "observation_date": latest_day["date"],
