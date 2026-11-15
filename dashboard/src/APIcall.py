@@ -15,6 +15,7 @@ import json
 from pathlib import Path
 import logging
 import os
+import math
 
 import numpy as np
 import pandas as pd
@@ -184,7 +185,7 @@ def weather(
 
     params = {
         # Max/min temp for GDD, plus rain and humidity for the other cards
-        "parameters": "T2M_MAX,T2M_MIN,PRECTOTCORR,RH2M",
+        "parameters": "T2M_MAX,T2M_MIN,PRECTOTCORR,RH2M,GWETROOT",
         "community": "AG",
         "longitude": lon,
         "latitude": lat,
@@ -223,6 +224,7 @@ def weather(
             "temp_avg": round(float(row["temp_avg"]), 1),
             "rain": round(float(row["PRECTOTCORR"]), 1),
             "humidity": round(float(row["RH2M"]), 1),
+            "soil_wetness": round(float(row["GWETROOT"]), 2),
             "daily_gdd": round(float(row["daily_gdd"]), 1),
             "cumulative_gdd": round(float(row["cumulative_gdd"]), 1),
         }
@@ -336,7 +338,80 @@ def ndvi(
         "ndvi_time_series": series,
     }
 
-import math  
+def circle_polygon(lat, lon, radius_miles, points=48):  # builds the outline of a circle on the map
+    dlat = radius_miles / 69.0  # one degree of latitude is about 69 miles everywhere on Earth
+    dlon = radius_miles / (69.17 * math.cos(math.radians(lat)))  # degrees of longitude get shorter as you go north, so we adjust
+    ring = []  # this list will hold the corner points of the circle
+    for i in range(points):  # go around the circle one point at a time (48 points looks round)
+        angle = 2 * math.pi * i / points  # the angle of this point, from 0 to a full turn
+        ring.append([lon + dlon * math.cos(angle), lat + dlat * math.sin(angle)])  # the point's [longitude, latitude]
+    ring.append(ring[0])  # repeat the first point at the end to close the shape
+    return {"type": "Polygon", "coordinates": [ring]}  # a standard shape format (GeoJSON) that rioxarray understands
+
+
+def read_reflectance_circle(url, polygon):  # opens one Landsat band and keeps only the circle
+    band = (  # start building the cropped image
+        rioxarray.open_rasterio(url)  # open the satellite image file from its web link
+        .rio.clip([polygon], crs="EPSG:4326", drop=True, all_touched=True)  # cut it to the circle (EPSG:4326 = normal latitude/longitude)
+        .astype(float)  # switch to decimal numbers so math works
+    )
+    band = band.where(band > 0)  # in Landsat, 0 means "no data", so turn those pixels into blanks
+    return band * 0.0000275 - 0.2  # official scale factor that turns raw numbers into surface reflectance
+
+
+@lru_cache(maxsize=32)  # remember recent answers so asking again for the same area is instant
+def compute_circle_ndvi(lat, lon, radius_miles, start, end, max_scenes, max_cloud):  # average greenness (NDVI) inside the circle
+    polygon = circle_polygon(lat, lon, radius_miles)  # the circle outline
+    xs = [p[0] for p in polygon["coordinates"][0]]  # every longitude on the outline
+    ys = [p[1] for p in polygon["coordinates"][0]]  # every latitude on the outline
+    bbox = [min(xs), min(ys), max(xs), max(ys)]  # the smallest square box that contains the circle (used to search the catalog)
+    catalog = pystac_client.Client.open(STAC_URL, modifier=planetary_computer.sign_inplace)  # connect to Microsoft Planetary Computer and allow downloads
+    search = catalog.search(  # ask the catalog for matching Landsat images
+        collections=["landsat-c2-l2"],  # which dataset to search (Landsat Collection 2, Level 2)
+        bbox=bbox,  # only images that cover our box
+        datetime=f"{start}/{end}",  # only images taken between these dates
+        query={"eo:cloud_cover": {"lt": max_cloud}},  # skip images that are too cloudy
+        sortby="-properties.datetime",  # newest images first
+        max_items=max_scenes,  # stop after this many images to keep it fast
+    )
+    rows = []  # will hold (date, average NDVI) for each image
+    for scene in search.items():  # go through each image found
+        try:  # try this image, but do not crash if it fails
+            red = read_reflectance_circle(scene.assets["red"].href, polygon)  # red light inside the circle
+            nir = read_reflectance_circle(scene.assets["nir08"].href, polygon)  # near-infrared light inside the circle
+            values = ((nir - red) / (nir + red)).values  # NDVI formula for every pixel
+            values = values[np.isfinite(values)]  # throw away blanks and divide-by-zero results
+            if values.size == 0:  # nothing usable inside the circle in this image
+                continue  # skip to the next image
+            rows.append((scene.datetime.strftime("%Y-%m-%d"), float(values.mean())))  # save the image date and its average NDVI
+        except Exception as exc:  # something went wrong with this one image
+            print(f"Skipping scene {scene.id}: {exc}")  # print a note in the terminal and carry on
+    if not rows:  # no usable images at all
+        return ()  # return an empty result
+    df = pd.DataFrame(rows, columns=["date", "mean_ndvi"])  # put the results in a table
+    df = df.groupby("date", as_index=False)["mean_ndvi"].mean().sort_values("date")  # if two images share a date, average them, then sort oldest to newest
+    df["mean_ndvi"] = df["mean_ndvi"].round(3)  # round to 3 decimals
+    return tuple(zip(df["date"], df["mean_ndvi"]))  # return as a simple list of (date, ndvi) pairs
+
+@app.get("/api/analysis")  # creates the web address /api/analysis
+def area_analysis(  # the function that runs when someone visits that address
+    lat: float = Query(..., ge=-90, le=90),  # latitude of the pin (required)
+    lon: float = Query(..., ge=-180, le=180),  # longitude of the pin (required)
+    start: str = Query(...),  # first date to look at, like 2026-08-15 (required)
+    end: str = Query(...),  # last date to look at (required)
+    radius_miles: float = Query(1.0, ge=0, le=10),  # radius of the selected area; 1 mile if not given
+):
+    weather_data = weather(lat=lat, lon=lon, start=start, end=end, base_temp=10.0)  # reuse your weather() function; we pass every value ourselves
+    search_radius = max(round(radius_miles, 2), 0.1)  # the satellite needs at least a tiny area, so never go below 0.1 mile
+    try:  # try the satellite step, but do not fail the whole analysis if it breaks
+        rows = compute_circle_ndvi(round(lat, 4), round(lon, 4), search_radius, start, end, 12, 20.0)  # up to 12 images, under 20% cloud
+    except Exception as exc:  # the satellite step failed
+        print(f"Satellite step failed: {exc}")  # print the reason in the terminal
+        rows = ()  # carry on with no satellite data
+    ndvi_series = [{"date": d, "mean_ndvi": float(v)} for d, v in rows]  # turn the pairs into the list format the analysis expects
+    return build_area_analysis(weather_data["daily"], ndvi_series, radius_miles)  # build the notices and send them to the dashboard
+
+
 
 # Reminder text shown on any notice that is not "good". Change it in one place here.
 REMINDER = "Notice: May need to inspect field"  # the only advice we give: go look at the field
