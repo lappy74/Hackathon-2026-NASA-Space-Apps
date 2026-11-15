@@ -1,6 +1,7 @@
 
 import { useEffect, useState } from "react";
 import type { FarmLocation } from "./FarmMap";
+import { apiUrl } from "./api";
 
 export type WeatherDay = {
   date: string;
@@ -53,7 +54,7 @@ export function useFarmWeather(
       base_temp: String(baseTemp),
     });
 
-    fetch(`/api/weather?${params}`, {
+    fetch(apiUrl(`/api/weather?${params}`), {
       signal: controller.signal,
     })
       .then(async (response) => {

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import "./LoRaDashboard.css";
+import { apiUrl } from "./api";
 
 // The FastAPI backend reads this from the bridge's local status file.
 // Keeping the Supabase key and USB serial access out of React.
@@ -70,7 +71,7 @@ export default function LoRaDashboard() {
 
     async function refresh() {
       try {
-        const response = await fetch("http://127.0.0.1:8000/api/lora/status", {
+        const response = await fetch(apiUrl("/api/lora/status"), {
           cache: "no-store",
         });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -100,7 +101,7 @@ export default function LoRaDashboard() {
     setSendBusy(true);
     setSendNotice("");
     try {
-      const response = await fetch("http://127.0.0.1:8000/api/lora/send", {
+      const response = await fetch(apiUrl("/api/lora/send"), {
         method: "POST",
       });
       const result = await response.json();

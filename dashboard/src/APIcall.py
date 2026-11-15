@@ -40,12 +40,17 @@ app = FastAPI(title="Field data API")
 app.include_router(manual_lora_router)
 
 # Let the Vite dev server (React app) call this API from the browser.
+configured_frontend_url = os.getenv("FRONTEND_URL", "").strip().rstrip("/")
+allowed_origins = [
+    "http://localhost:5174",
+    "http://127.0.0.1:5174",
+]
+if configured_frontend_url:
+    allowed_origins.append(configured_frontend_url)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5176",
-    "http://127.0.0.1:5176",
-    "http://localhost:5174", "http://127.0.0.1:5174",
-    "http://localhost:5175", "http://127.0.0.1:5175"],
+    allow_origins=allowed_origins,
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )

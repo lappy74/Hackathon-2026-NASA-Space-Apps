@@ -6,3 +6,9 @@ numpy
 rioxarray
 planetary-computer
 pystac-client
+python-dotenv
+supabase
+pyserial
+supabase
+python-dotenv
+pyserial

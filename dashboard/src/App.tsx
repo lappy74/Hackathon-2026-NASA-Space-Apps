@@ -1,5 +1,7 @@
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
+import type { FormEvent } from "react";
 import type { CSSProperties } from "react";
+import { supabase } from "./lib/supabase";
 import FarmMap, { type FarmLocation } from "./FarmMap";
 import LoRaDashboard from "./LoRaDashboard";
 import FieldDataPanel, {
@@ -457,8 +459,118 @@ const periodDays: Record<Period, number> = {
   yearly: 365,
 };
 
+function AuthScreen({
+  onAuthenticated,
+  onSkip,
+}: {
+  onAuthenticated: () => void;
+  onSkip: () => void;
+}) {
+  const [mode, setMode] = useState<"sign-in" | "sign-up">("sign-up");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-export default function App() {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    setMessage(null);
+
+    if (!supabase) {
+      setError("Supabase is not configured. Add the VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY environment variables.");
+      return;
+    }
+
+    setSubmitting(true);
+    const result = mode === "sign-up"
+      ? await supabase.auth.signUp({ email, password })
+      : await supabase.auth.signInWithPassword({ email, password });
+    setSubmitting(false);
+
+    if (result.error) {
+      setError(result.error.message);
+      return;
+    }
+
+    if (mode === "sign-up" && !result.data.session) {
+      setMessage("Account created. Check your email to confirm your account, then sign in.");
+      setMode("sign-in");
+      return;
+    }
+
+    onAuthenticated();
+  }
+
+  return (
+    <main className="auth-shell">
+      <section className="auth-card" aria-labelledby="auth-title">
+        <img className="auth-logo" src="/LOGO.png" alt="ISL ASTRO-NOTS logo" />
+        <p className="overline">Agricultural intelligence</p>
+        <h1 id="auth-title">{mode === "sign-up" ? "Create your account" : "Welcome back"}</h1>
+        <p className="auth-copy">
+          {mode === "sign-up"
+            ? "Create an account to access your farm dashboard."
+            : "Sign in to continue to your farm dashboard."}
+        </p>
+
+        <form className="auth-form" onSubmit={handleSubmit}>
+          <label htmlFor="auth-email">Email</label>
+          <input
+            id="auth-email"
+            type="email"
+            autoComplete="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            required
+          />
+          <label htmlFor="auth-password">Password</label>
+          <input
+            id="auth-password"
+            type="password"
+            minLength={6}
+            autoComplete={mode === "sign-up" ? "new-password" : "current-password"}
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            required
+          />
+          {error && <p className="auth-feedback error" role="alert">{error}</p>}
+          {message && <p className="auth-feedback" role="status">{message}</p>}
+          <button className="auth-submit" type="submit" disabled={submitting}>
+            {submitting ? "Working…" : mode === "sign-up" ? "Create account" : "Sign in"}
+          </button>
+        </form>
+
+        <button
+          className="auth-toggle"
+          type="button"
+          onClick={() => {
+            setMode(mode === "sign-up" ? "sign-in" : "sign-up");
+            setError(null);
+            setMessage(null);
+          }}
+        >
+          {mode === "sign-up" ? "Already have an account? Sign in" : "Need an account? Sign up"}
+        </button>
+        <button className="auth-skip" type="button" onClick={onSkip}>
+          Continue without an account
+        </button>
+      </section>
+    </main>
+  );
+}
+
+
+function Dashboard({
+  authenticated,
+  onOpenAuth,
+  onSignOut,
+}: {
+  authenticated: boolean;
+  onOpenAuth: () => void;
+  onSignOut: () => void;
+}) {
   const [source, setSource] = useState<"map" | "data" | "lora" | "crop">("map");
   const [environmentView, setEnvironmentView] = useState<"weather" | "soil">("weather");
   const [farmLocation, setFarmLocation] =
@@ -576,6 +688,9 @@ export default function App() {
         <div className="header-meta">
           <span>{dayName}</span>
           <strong>{formattedDate}</strong>
+          <button className="auth-header-button" type="button" onClick={authenticated ? onSignOut : onOpenAuth}>
+            {authenticated ? "Sign out" : "Sign in / sign up"}
+          </button>
         </div>
       </header>
 
@@ -725,5 +840,58 @@ export default function App() {
         </div>
       )}
     </main>
+  );
+}
+
+export default function App() {
+  const [sessionReady, setSessionReady] = useState(false);
+  const [authenticated, setAuthenticated] = useState(false);
+  const [authOpen, setAuthOpen] = useState(false);
+
+  useEffect(() => {
+    if (!supabase) {
+      setSessionReady(true);
+      return;
+    }
+
+    supabase.auth.getSession().then(({ data }) => {
+      setAuthenticated(Boolean(data.session));
+      setSessionReady(true);
+    });
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAuthenticated(Boolean(session));
+      setSessionReady(true);
+    });
+
+    return () => listener.subscription.unsubscribe();
+  }, []);
+
+  if (!sessionReady) return null;
+
+  async function handleSignOut() {
+    await supabase?.auth.signOut();
+    setAuthenticated(false);
+  }
+
+  return (
+    <>
+      <Dashboard
+        authenticated={authenticated}
+        onOpenAuth={() => setAuthOpen(true)}
+        onSignOut={handleSignOut}
+      />
+      {authOpen && (
+        <div className="auth-modal-backdrop">
+          <AuthScreen
+            onAuthenticated={() => {
+              setAuthenticated(true);
+              setAuthOpen(false);
+            }}
+            onSkip={() => setAuthOpen(false)}
+          />
+        </div>
+      )}
+    </>
   );
 }

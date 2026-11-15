@@ -12,7 +12,7 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5173,
+    port: 5174,
     // Requests to /api/... go to the Python backend (Flask/FastAPI on port 8000).
     proxy: {
       '/api': 'http://localhost:8000',
