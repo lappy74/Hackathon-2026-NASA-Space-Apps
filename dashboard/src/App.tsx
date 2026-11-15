@@ -4,6 +4,7 @@ import type { CSSProperties } from "react";
 import { supabase } from "./lib/supabase";
 import FarmMap, { type FarmLocation } from "./FarmMap";
 import LoRaDashboard from "./LoRaDashboard";
+import AnalysisPanel from "./AnalysisPanel";
 import FieldDataPanel, {
   PeriodSelector,
   type Period,
@@ -746,14 +747,7 @@ function Dashboard({
         ) : source === "lora" ? (
           <LoRaDashboard />
         ) : source === "crop" ? (
-          <div className="crop-cycle-placeholder">
-            <p className="eyebrow">Crop cycles</p>
-            <h2>Crop cycle planning</h2>
-            <p>
-              This space is reserved for crop-cycle planning and seasonal growth tracking.
-            </p>
-            <span className="source-status"><i /> Work in progress</span>
-          </div>
+          <AnalysisPanel location={farmLocation} />
         ) : (
           <div className="location-summary">
             <div className="location-summary-icon">
