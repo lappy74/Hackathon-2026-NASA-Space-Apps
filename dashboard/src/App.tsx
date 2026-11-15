@@ -1,4 +1,5 @@
 import { useId, useState } from "react";
+import type { CSSProperties } from "react";
 import FarmMap, { type FarmLocation } from "./FarmMap";
 import FieldDataPanel from "./FieldDataPanel";
 import {
@@ -15,7 +16,7 @@ type Metric = {
   change: string;
   color: string;
   softColor: string;
-  icon: "temperature" | "rainfall" | "gdd" | "humidity";
+  icon: "temperature" | "rainfall" | "gdd" | "humidity" | "soil" | "health";
   data: Record<Range, number[]>;
 };
 
@@ -78,6 +79,38 @@ const metrics: Metric[] = [
   },
 ];
 
+const soilWaterMetrics: Metric[] = [
+  {
+    title: "Soil moisture",
+    value: "56",
+    unit: "%",
+    change: "Within ideal range",
+    color: "#d1a326",
+    softColor: "#fbf3dc",
+    icon: "soil",
+    data: {
+      Today: [54, 56, 57, 56, 55, 54, 53, 55, 56, 56],
+      "1 month": [62, 59, 57, 52, 49, 56, 61, 59, 54, 50, 53, 56],
+      "6 months": [48, 53, 61, 65, 58, 51, 47, 55, 63, 60, 57, 56],
+    },
+  },
+  { ...metrics[3], title: "Humidity" },
+  {
+    title: "Soil health",
+    value: "82",
+    unit: "/100",
+    change: "Healthy biological activity",
+    color: "#d1a326",
+    softColor: "#faf1d9",
+    icon: "health",
+    data: {
+      Today: [76, 78, 79, 80, 81, 80, 82, 82, 83, 82],
+      "1 month": [72, 75, 74, 77, 79, 78, 80, 81, 82, 81, 83, 82],
+      "6 months": [61, 64, 67, 69, 72, 70, 74, 77, 79, 80, 81, 82],
+    },
+  },
+];
+
 const ranges: Range[] = ["Today", "1 month", "6 months"];
 
 function Icon({ type }: { type: Metric["icon"] }) {
@@ -113,6 +146,22 @@ function Icon({ type }: { type: Metric["icon"] }) {
       <svg {...common} aria-hidden="true">
         <path d="M12 21V9" />
         <path d="M12 14c-4.5 0-7-2.5-7-6 4.5 0 7 2.5 7 6ZM12 10c0-4 2.5-6 7-6 0 4-2.5 6-7 6Z" />
+      </svg>
+    );
+  }
+  if (type === "soil") {
+    return (
+      <svg {...common} aria-hidden="true">
+        <path d="M4 7h16M4 12h16M4 17h16" />
+        <path d="M7 4v16M17 4v16" />
+      </svg>
+    );
+  }
+  if (type === "health") {
+    return (
+      <svg {...common} aria-hidden="true">
+        <path d="M12 20S4 15.4 4 9.3A4.3 4.3 0 0 1 12 7a4.3 4.3 0 0 1 8 2.3C20 15.4 12 20 12 20Z" />
+        <path d="M8 12h2l1.2-2.5L13 15l1.4-3H16" />
       </svg>
     );
   }
@@ -247,7 +296,7 @@ function SoilPanel() {
       </div>
 
       <div className="soil-reading">
-        <div className="moisture-ring" style={{ "--value": "56%" } as React.CSSProperties}>
+        <div className="moisture-ring" style={{ "--value": "56%" } as CSSProperties}>
           <div>
             <strong>
               56<span>%</span>
@@ -309,7 +358,8 @@ const cropStages = [
 
 
 export default function App() {
-  const [source, setSource] = useState("map");
+  const [source, setSource] = useState<"map" | "data" | "lora" | "crop">("map");
+  const [environmentView, setEnvironmentView] = useState<"weather" | "soil">("weather");
   const [farmLocation, setFarmLocation] =
     useState<FarmLocation | null>(null);
 
@@ -341,6 +391,8 @@ export default function App() {
     rainfall: latestWeather?.rainfall ?? null,
     gdd: latestWeather?.gdd ?? null,
     humidity: latestWeather?.humidity ?? null,
+    soil: null,
+    health: null,
   };
 
   const activeMetrics: Metric[] = metrics.map((metric) => {
@@ -366,13 +418,6 @@ export default function App() {
   });
 
 
-  // Summaries for different dashboard periods
-	const dailyWeather = summarizeWeather(weatherDays, 1);
-	const weeklyWeather = summarizeWeather(weatherDays, 7);
-	const monthlyWeather = summarizeWeather(weatherDays, 30);
-	const sixMonthWeather = summarizeWeather(weatherDays, 180);
-	const yearlyWeather = summarizeWeather(weatherDays, 365);
-
   return (
     <main>
       <header className="page-header">
@@ -386,28 +431,26 @@ export default function App() {
           <h1>ISL ASTRO-NOTS</h1>
           <p className="subtitle">Field overview · Updated moments ago</p>
         </div>
-        <label className="source-select">
-          <span>Data source</span>
-          <div>
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 21s6-5.1 6-11a6 6 0 1 0-12 0c0 5.9 6 11 6 11Z" />
-              <circle cx="12" cy="10" r="2" />
-            </svg>
-            <select
-              value={source}
-              onChange={(event) => setSource(event.target.value as "map" | "data" | "lora")}
+        <nav className="source-nav" aria-label="Data sources">
+          {([
+            ["map", "Map location"],
+            ["data", "Location data"],
+            ["lora", "LoRa Point to Point"],
+            ["crop", "Crop cycles"],
+          ] as const).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              className={`${source === value ? "active " : ""}${value === "data" && !farmLocation ? "disabled" : ""}`}
+              aria-disabled={value === "data" && !farmLocation}
+              onClick={() => {
+                if (value !== "data" || farmLocation) setSource(value);
+              }}
             >
-              <option value="map">Map location</option>
-              <option value="data" disabled={!farmLocation}>
-                Location data
-              </option>
-              <option value="lora">LoRa Point to Point</option>
-            </select>
-            <svg className="select-chevron" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="m8 10 4 4 4-4" />
-            </svg>
-          </div>
-        </label>
+              {label}
+            </button>
+          ))}
+        </nav>
         <div className="header-meta">
           <span>{dayName}</span>
           <strong>{formattedDate}</strong>
@@ -452,9 +495,7 @@ export default function App() {
       value={farmLocation}
       onSelect={setFarmLocation}
     />
-    {farmLocation && (
-    <FieldDataPanel location={farmLocation} />
-     )}
+    {farmLocation && <FieldDataPanel location={farmLocation} />}
   </>
         ) : source === "lora" ? (
           <div className="lora-placeholder">
@@ -481,6 +522,15 @@ export default function App() {
               </span>
             </div>
           </div>
+        ) : source === "crop" ? (
+          <div className="crop-cycle-placeholder">
+            <p className="eyebrow">Crop cycles</p>
+            <h2>Crop cycle planning</h2>
+            <p>
+              This space is reserved for crop-cycle planning and seasonal growth tracking.
+            </p>
+            <span className="source-status"><i /> Template ready</span>
+          </div>
         ) : (
           <div className="location-summary">
             <div className="location-summary-icon">
@@ -503,7 +553,7 @@ export default function App() {
 
       {dataReady ? (
         <>
-          <section className="dashboard-grid" aria-label="Field conditions">
+          <section className="environment-section" aria-label="Field conditions">
             <div className="weather-section">
               <div className="section-heading">
                 <div>
@@ -512,47 +562,32 @@ export default function App() {
                 </div>
                 <p>Selected field location</p>
               </div>
+              <div className="environment-tabs" aria-label="Environment data type">
+                <button
+                  type="button"
+                  className={environmentView === "weather" ? "active" : ""}
+                  onClick={() => setEnvironmentView("weather")}
+                  aria-pressed={environmentView === "weather"}
+                >
+                  Weather data
+                </button>
+                <button
+                  type="button"
+                  className={environmentView === "soil" ? "active" : ""}
+                  onClick={() => setEnvironmentView("soil")}
+                  aria-pressed={environmentView === "soil"}
+                >
+                  Soil &amp; water data
+                </button>
+              </div>
               <div className="metric-grid">
-                {activeMetrics.map((metric) => (
+                {(environmentView === "weather"
+                  ? activeMetrics.filter((metric) => metric.title !== "Humidity")
+                  : soilWaterMetrics
+                ).map((metric) => (
                   <MetricCard key={metric.title} metric={metric} />
                 ))}
               </div>
-            </div>
-            <SoilPanel />
-          </section>
-
-          <section className="crop-cycle">
-            <div className="cycle-heading">
-              <p className="eyebrow">Season progress</p>
-              <h2>Current crop cycle</h2>
-              <p>
-                Your crop is currently in the <strong>vegetative stage</strong>, focused on
-                establishing a strong canopy and root system.
-              </p>
-            </div>
-            <div className="cycle-track">
-              <div className="track-line" />
-              {cropStages.map((stage, index) => (
-                <article
-                  key={stage.name}
-                  className={`cycle-stage ${stage.current ? "current" : ""} ${stage.complete ? "complete" : ""}`}
-                >
-                  <div className="stage-marker">
-                    {stage.complete ? (
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="m7 12 3.2 3.2L17.5 8" />
-                      </svg>
-                    ) : (
-                      <span>{index + 1}</span>
-                    )}
-                  </div>
-                  <p>
-                    {stage.current ? "Current stage" : stage.complete ? "Completed" : "Upcoming"}
-                  </p>
-                  <h3>{stage.name}</h3>
-                  <small>{stage.description}</small>
-                </article>
-              ))}
             </div>
           </section>
         </>

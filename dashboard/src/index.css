@@ -139,6 +139,41 @@ main {
   font-weight: 600;
 }
 
+.source-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+.source-nav button {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: var(--gold);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.source-nav button:hover,
+.source-nav button:focus-visible,
+.source-nav button.active {
+  color: var(--gold);
+  border-color: rgba(209, 163, 38, 0.5);
+  background: rgba(209, 163, 38, 0.1);
+}
+
+.source-nav button.disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .source-select {
   margin-left: auto;
   color: #9fadc0;
@@ -1289,4 +1324,77 @@ main {
 
 .metric-grid > .card-note.error {
   color: #f0b199;
+}
+
+.environment-section {
+  margin-bottom: 22px;
+}
+
+.environment-section .metric-grid {
+  grid-template-columns: 1fr;
+}
+
+.environment-tabs {
+  display: flex;
+  width: min(100%, 430px);
+  margin: 0 0 16px;
+  padding: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.environment-tabs button {
+  flex: 1;
+  padding: 9px 12px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: #aebac8;
+  background: transparent;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.environment-tabs button:hover,
+.environment-tabs button:focus-visible,
+.environment-tabs button.active {
+  color: var(--gold);
+  border-color: rgba(209, 163, 38, 0.45);
+  background: rgba(209, 163, 38, 0.1);
+}
+
+@media (max-width: 900px) {
+  .page-header {
+    flex-wrap: wrap;
+  }
+
+  .source-nav {
+    flex: 0 0 100%;
+    width: 100%;
+    max-width: none;
+    margin: 16px 0 0;
+    order: 3;
+  }
+}
+
+@media (max-width: 520px) {
+  .source-nav {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .source-nav button {
+    white-space: normal;
+  }
+
+  .environment-tabs {
+    width: 100%;
+  }
+
+  .environment-tabs button {
+    padding-inline: 7px;
+    font-size: 10px;
+  }
 }
