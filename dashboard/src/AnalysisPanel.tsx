@@ -131,6 +131,87 @@ const BADGE_TEXT: Record<Status, string> = { // a lookup table: status word -> b
   unknown: "Not enough data", // data is missing
 };
 
+// Self-contained styling so AnalysisPanel stays readable even when the global
+// stylesheet does not define its analysis-* classes.
+const ANALYSIS_PANEL_CSS = `
+  .analysis-wrap {
+    padding: 24px;
+    border-radius: 16px;
+    background: #132f50;
+    color: #f5f7fa;
+    text-align: left;
+  }
+  .analysis-wrap .analysis-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
+  }
+  .analysis-wrap h2, .analysis-wrap h3,
+  .analysis-wrap .analysis-headline,
+  .analysis-wrap .analysis-message,
+  .analysis-wrap .analysis-lines strong {
+    color: #ffffff;
+  }
+  .analysis-wrap h2 { font-size: 24px; font-weight: 700; }
+  .analysis-wrap h3 { font-size: 15px; font-weight: 700; }
+  .analysis-wrap .eyebrow { color: #d1a326; }
+  .analysis-wrap .analysis-sub,
+  .analysis-wrap .analysis-message-box,
+  .analysis-wrap .analysis-lines span,
+  .analysis-wrap .analysis-notes,
+  .analysis-wrap .analysis-reminder {
+    color: #d7e0ea;
+  }
+  .analysis-wrap .analysis-headline { margin-bottom: 16px; }
+  .analysis-wrap .analysis-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+    gap: 14px;
+  }
+  .analysis-wrap .analysis-notice {
+    padding: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 12px;
+    background: #193d60;
+  }
+  .analysis-wrap .analysis-notice-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .analysis-wrap .analysis-lines { margin-top: 12px; }
+  .analysis-wrap .analysis-lines li { display: flex; align-items: baseline; gap: 9px; margin: 7px 0; }
+  .analysis-wrap .analysis-lines li div { display: flex; flex-direction: column; gap: 2px; }
+  .analysis-wrap .analysis-dot { flex: 0 0 8px; width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; }
+  .analysis-wrap .analysis-dot.good { background: #4ade80; }
+  .analysis-wrap .analysis-dot.watch { background: #facc15; }
+  .analysis-wrap .analysis-dot.alert { background: #f87171; }
+  .analysis-wrap .analysis-badge,
+  .analysis-wrap .analysis-pill {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: #475569;
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .analysis-wrap .analysis-badge.good, .analysis-wrap .analysis-pill.good { background: #166534; }
+  .analysis-wrap .analysis-badge.watch, .analysis-wrap .analysis-pill.watch { background: #a16207; }
+  .analysis-wrap .analysis-badge.alert, .analysis-wrap .analysis-pill.alert { background: #b91c1c; }
+  .analysis-wrap .analysis-notes { margin-top: 16px; font-size: 12px; }
+  .analysis-wrap .analysis-notes li { margin: 4px 0; }
+  .analysis-wrap .analysis-reminder { margin-top: 12px; font-size: 12px; }
+  .analysis-wrap .analysis-message-box { padding: 12px 0; }
+  .analysis-wrap .analysis-message-box.error { color: #fecaca; }
+`;
+
 // ---------- The component that draws everything ----------
 
 export default function AnalysisPanel({ location }: { location: FarmLocation | null }) { // location comes from App.tsx
@@ -138,6 +219,7 @@ export default function AnalysisPanel({ location }: { location: FarmLocation | n
 
   return ( // what the component draws
     <div className="analysis-wrap">
+      <style>{ANALYSIS_PANEL_CSS}</style>
       {/* Header row: title on the left, status badge on the right */}
       <div className="analysis-header">
         <div>
